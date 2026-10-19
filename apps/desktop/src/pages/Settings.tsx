@@ -27,6 +27,7 @@ import { showToast } from "../state/toast.js";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { clearRemembered, loadRemembered, session, isTauri } from "../lib/clients.js";
 import { clearHomeLayout } from "../lib/homeCards.js";
+import { resetHomeBoard } from "../state/freeBoard.js";
 import { useFavs } from "../state/favs.js";
 import { activateTheme, deactivateTheme, setDayNightTheme, setFollowSystem, useThemes } from "../state/theme.js";
 import { focusSettingsTarget } from "../components/Layout.js";
@@ -571,7 +572,7 @@ export function SettingsPage() {
         <SettingsRow
           title="恢复默认首页布局"
           sub="清除首页卡片的排列、折叠与隐藏记录，回到默认版式。"
-          control={<Btn variant="outline" size="sm" onClick={() => { clearHomeLayout(); setHomeResetAt(Date.now()); }}>{homeResetAt ? "已恢复默认" : "恢复默认布局"}</Btn>}
+          control={<Btn variant="outline" size="sm" onClick={() => { clearHomeLayout(); resetHomeBoard(); setHomeResetAt(Date.now()); }}>{homeResetAt ? "已恢复默认" : "恢复默认布局"}</Btn>}
         />
       </SettingsList>
 

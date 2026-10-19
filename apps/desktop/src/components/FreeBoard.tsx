@@ -40,6 +40,7 @@ import { ATOM_TEMPLATE_IDS, allWidgetDefs } from "../state/widgets.js";
 import { defForSpec, isTierControlled, type WidgetDef, type WidgetSize } from "../state/widgetMeta.js";
 import { planForItem } from "../state/widgetRender.js";
 import { BOARD_TEMPLATES, templateItems, type BoardTemplate } from "../state/boardTemplates.js";
+import { SNAP_DIST, snapMove, snapResize, type SnapGuide, type SnapHandle } from "../state/boardSnap.js";
 import { WidgetHost, type WidgetRenderer } from "./WidgetHost.js";
 import { BoardAddDrawer } from "./BoardAddDrawer.js";
 import { BoardItemPicker, type PickerItem } from "./BoardItemPicker.js";
@@ -406,6 +407,8 @@ export function FreeBoard({ boardId = HOME_BOARD_ID, orientation = HOME_ORIENTAT
 
   /** 拖动/缩放的**进行时**覆盖（不落库，松手才 commit——localStorage 经不起每帧写） */
   const [live, setLive] = useState<{ id: string; rect: Rect } | null>(null);
+  /** 拖动/缩放期间的吸附参考线（世界坐标；松手即清）。 */
+  const [guides, setGuides] = useState<SnapGuide[]>([]);
   const liveRef = useRef(live);
   liveRef.current = live;
 
@@ -754,11 +757,24 @@ export function FreeBoard({ boardId = HOME_BOARD_ID, orientation = HOME_ORIENTAT
            否则拖完松手会误触组件内的按钮/链接。 */
         window.addEventListener("click", killClick, true);
       }
+      /* Alt（macOS 上是 Option）= **临时关闭吸附**：要像素级位置时按住它拖。
+         每帧都读 ev.altKey，所以拖到一半按下/松开也立即生效，不用重新起手。 */
+      const free = ev.altKey;
+      /* 吸附半径按**屏幕**给：换算到世界坐标要除以倍率，放大/缩小时手感一致。
+         候选是除自己之外的所有磁贴（允许重叠的板子上它们就是"已有的边界线"）。 */
+      const snapLimit = SNAP_DIST / (scaleRef.current || 1);
+      const others = free ? [] : itemsRef.current
+        .filter((o) => o.id !== id)
+        .map((o) => ({ x: o.x, y: o.y, w: o.w, h: o.h }));
       if (m === "move") {
         /* 跟手的矩形也要夹（与 clampRect/落库同口径）：拖出画布时视觉停在边界上，
            松手才不会"弹回去"——数据层的 x/y 夹取见 boardCore.withRect 的坐标口径。 */
-        const next = { id, rect: clampRect({ ...orig, x: orig.x + dx, y: orig.y + dy }) };
+        const raw = clampRect({ ...orig, x: orig.x + dx, y: orig.y + dy });
+        /* 先夹再吸、吸完再夹：吸附结果可能贴到画布边，最终视觉必须等于落库值。 */
+        const snapped = free ? { rect: raw, guides: [] as SnapGuide[] } : snapMove(raw, others, snapLimit);
+        const next = { id, rect: clampRect(snapped.rect) };
         liveRef.current = next; setLive(next);
+        setGuides(snapped.guides);
       } else {
         let { x, y, w, h } = orig;
         const west = m === "nw" || m === "sw" || m === "w";
@@ -769,8 +785,14 @@ export function FreeBoard({ boardId = HOME_BOARD_ID, orientation = HOME_ORIENTAT
         h = Math.max(MIN_H, h);
         if (west) x = orig.x + orig.w - w;
         if (north) y = orig.y + orig.h - h;
-        const next = { id, rect: { x: Math.max(0, x), y: Math.max(0, y), w, h } };
+        /* 缩放只吸**正在拖的那条边**（西/北把手吸左边时右边保持不动）。 */
+        const box = { x: Math.max(0, x), y: Math.max(0, y), w, h };
+        const snapped = free
+          ? { rect: box, guides: [] as SnapGuide[] }
+          : snapResize(box, others, m as SnapHandle, { limit: snapLimit, minW: MIN_W, minH: MIN_H });
+        const next = { id, rect: clampRect(snapped.rect) };
         liveRef.current = next; setLive(next);
+        setGuides(snapped.guides);
       }
     };
     const killClick = (ev: MouseEvent): void => {
@@ -790,7 +812,7 @@ export function FreeBoard({ boardId = HOME_BOARD_ID, orientation = HOME_ORIENTAT
         if (mode === "move") ops.move(id, r.x, r.y);
         else ops.resize(id, r);
       }
-      liveRef.current = null; setLive(null);
+      liveRef.current = null; setLive(null); setGuides([]);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -920,6 +942,19 @@ export function FreeBoard({ boardId = HOME_BOARD_ID, orientation = HOME_ORIENTAT
         {/* ── 世界层（2026-10-15 无限画布）──
             条目与笔迹都活在**世界坐标**里，这一层只负责"看哪一块"：translate(x,y) + scale(z)。
             把 contentRect 当边界是**反模型**的写法（那正是旧盒子模型的老路），这里只做变换。 */}
+
+          {/* 吸附参考线：拖动/缩放期间才出现，画在世界坐标里（跟着缩放走）。
+              线盖住「正在拖的边 + 被对齐的那条边」的跨度，用户能看懂是谁跟谁对齐了。 */}
+          {guides.map((g, i) => (
+            <div
+              key={"guide." + i}
+              className="free-guide"
+              aria-hidden="true"
+              style={g.axis === "x"
+                ? { left: g.pos, top: g.from, width: 1, height: Math.max(1, g.to - g.from) }
+                : { top: g.pos, left: g.from, height: 1, width: Math.max(1, g.to - g.from) }}
+            />
+          ))}
 
           {items.map((it) => {
             const r = stackRects?.map.get(it.id) ?? rectOf(it);
