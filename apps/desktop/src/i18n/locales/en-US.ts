@@ -173,6 +173,10 @@ const enUS: LocaleDef = {
     "misc.practical.pin": "Add to quick access",
     "misc.practical.pinAdd": "Add {name} to quick access",
     "misc.practical.pinAt": "At slot {n}. Click to change.",
+    "tour.mcp.title": "Expose OH MCP to local apps",
+    "tour.mcp.subOn": "On: local clients can connect to 127.0.0.1:8787",
+    "tour.mcp.subOff": "Off by default. When on, other local apps can call OneTHU as a tool.",
+    "tour.mcp.aria": "OH MCP server toggle",
   },
 };
 

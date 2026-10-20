@@ -2883,6 +2883,11 @@ const zhCN: LocaleDef = {
     "misc.practical.pin": "放进快捷入口",
     "misc.practical.pinAdd": "把{name}放进快捷入口",
     "misc.practical.pinAt": "已在入口 {n}，点击更换位置",
+    /* ── 导览：OH MCP ─────────────────────────────────────── */
+    "tour.mcp.title": "向本机应用开放 OH MCP",
+    "tour.mcp.subOn": "已开启：本机客户端可连 127.0.0.1:8787",
+    "tour.mcp.subOff": "默认关闭；开启后本机其他应用可把 OneTHU 当工具调用",
+    "tour.mcp.aria": "OH MCP 服务器开关",
   },
 };
 
